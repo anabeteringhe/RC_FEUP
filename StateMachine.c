@@ -20,108 +20,73 @@ int fd;
 
 #define BUF_SIZE 1024
 
-int state;
-unsigned char RECIEVED[5];
+int state = 0;
+unsigned char RECIEVED[5] = {0};
 
-void verifyState(int state, unsigned char REC) 
-{
-    switch (state) {
+void verifyState(int *state, unsigned char REC) {
+    switch (*state) {
         case 0:
-            {
-                printf("State 0\n");
-                if(strcmp(REC,FLAG)==0))
-                {
-                    state=1;
-                }
-                else
-                {
-                    state=0;
-                }
+            printf("START\n");
+            if (REC == FLAG) {
+                *state = 1;
+            } else {
+                *state = 0;
             }
             break;
         case 1:
-            {
-                printf("State 1\n");
-                if(strcmp(REC,A_SENDER) || strcmp(REC,A_RECEIVER))
-                {
-                    state=2;
-                }
-                else if(REC==FLAG)
-                {
-                    state=1;
-                }
-                else
-                {
-                    state=0;
-                }
+            printf("FLAG RCV\n");
+            if (REC == A_SENDER || REC == A_RECEIVER) {
+                *state = 2;
+            } else if (REC == FLAG) {
+                *state = 1;
+            } else {
+                *state = 0;
             }
             break;
         case 2:
-        {
-            printf("State 2\n");
-            if(strcmpREC==C_SET || REC==C_UA)
-            {
-                state=3;
+            printf("A RACV\n");
+            if (REC == C_SET || REC == C_UA) {
+                *state = 3;
+            } else if (REC == FLAG) {
+                *state = 1;
+            } else {
+                *state = 0;
             }
-            else if(REC==FLAG)
-            {
-                state=1;
-            }
-            else
-            {
-                state=0;
-            }
-        }
             break;
         case 3:
-        {
-            printf("State 3\n");
-            if(REC==(A_SENDER^C_SET) || REC==(A_RECEIVER^C_UA))
-            {
-                state=4;
+            printf("C REV\n");
+            if (REC == (A_SENDER ^ C_SET) || REC == (A_RECEIVER ^ C_UA)) {
+                *state = 4;
+            } else if (REC == FLAG) {
+                *state = 1;
+            } else {
+                *state = 0;
             }
-            else if(REC==FLAG)
-            {
-                state=1;
-            }
-            else
-            {
-                state=0;
-            }
-        }
             break;
         case 4:
-        {
-            printf("State 4\n");
-            if(REC==FLAG)
-            {
-                state=5;
+            printf("BCC OK\n");
+            if (REC == FLAG) {
+                *state = 5;
+            } else {
+                *state = 0;
             }
-            else
-            {
-                state=0;
-            }
-        }
             break;
         default:
-        {
             printf("Invalid state\n");
-            state=0;
-        }
+            *state = 0;
             break;
     }
 }
 
-void recievedFrame(unsigned char REC)
-{
-    verifyState(state,REC);
-    RECIEVED[state]=REC;
+void recievedFrame(unsigned char REC) {
+    verifyState(&state, REC);
+    if (state >= 0 && state < 5) {  // Ensure the index is within the bounds of the array
+        RECIEVED[state] = REC;
+    }
 }
 
-int main(int argc, char *argv[])
-{
-    if (argc < 2)
-    {
+int main(int argc, char *argv[]) {
+    if (argc < 2) {
         printf("Incorrect program usage\n"
                "Usage: %s <SerialPort>\n"
                "Example: %s /dev/ttyS1\n",
@@ -133,8 +98,7 @@ int main(int argc, char *argv[])
     const char *serialPortName = argv[1];
 
     fd = open(serialPortName, O_RDWR | O_NOCTTY);
-    if (fd < 0)
-    {
+    if (fd < 0) {
         perror(serialPortName);
         exit(-1);
     }
@@ -142,8 +106,7 @@ int main(int argc, char *argv[])
     struct termios oldtio;
     struct termios newtio;
 
-    if (tcgetattr(fd, &oldtio) == -1)
-    {
+    if (tcgetattr(fd, &oldtio) == -1) {
         perror("tcgetattr");
         exit(-1);
     }
@@ -160,32 +123,26 @@ int main(int argc, char *argv[])
 
     tcflush(fd, TCIOFLUSH);
 
-    if (tcsetattr(fd, TCSANOW, &newtio) == -1)
-    {
+    if (tcsetattr(fd, TCSANOW, &newtio) == -1) {
         perror("tcsetattr");
         exit(-1);
     }
 
     printf("New termios structure set\n");
 
-    //the code
-
+    // Read data and process the frame
     unsigned char buf[BUF_SIZE] = {0};
     int bytes;
-    for(int i=0; i<1024 || state==5; i++)
-    {
+    for (int i = 0; i < 1024 && state != 5; i++) {
         bytes = read(fd, buf, 1);
-        if(bytes>0)
-        {
+        if (bytes > 0) {
             recievedFrame(buf[0]);
         }
     }
 
-    //the code
     sleep(1);
 
-    if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
-    {
+    if (tcsetattr(fd, TCSANOW, &oldtio) == -1) {
         perror("tcsetattr");
         exit(-1);
     }
